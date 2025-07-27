@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mortgage vs Invest – Break-Even Calculator</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.1.0"></script>
+
+<style>
+:root{--bg:#0d0d0f;--panel:#19191d;--accent:#32d27c;--text:#f1f1f4;--muted:#8a8a90;--font:"Inter",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}
+body{padding:0 1rem 3rem;background:var(--bg);color:var(--text);
+     font-family:var(--font);display:flex;flex-direction:column;align-items:center}
+h1{font-size:1.85rem;margin:1.5rem 0;text-align:center}
+
+.grid{display:grid;gap:1.2rem;width:100%;max-width:840px;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.field{display:flex;flex-direction:column;position:relative}
+.field-label{display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted);margin-bottom:.25rem}
+.help-icon{width:14px;height:14px;border-radius:50%;background:var(--muted);color:var(--bg);
+           font-size:10px;display:flex;align-items:center;justify-content:center;
+           cursor:help;transition:all .2s ease}
+.help-icon:hover{background:var(--accent);transform:scale(1.1)}
+.tooltip{position:absolute;bottom:100%;left:0;right:0;background:var(--panel);
+         border:1px solid var(--accent);border-radius:.4rem;padding:.6rem;font-size:.8rem;
+         color:var(--text);z-index:10;opacity:0;visibility:hidden;transform:translateY(5px);
+         transition:all .2s ease;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.field:hover .tooltip{opacity:1;visibility:visible;transform:translateY(0)}
+input[type="number"]{width:100%;padding:.45rem .6rem;border:none;border-radius:.3rem;
+                     background:var(--panel);color:var(--text);transition:all .2s ease}
+input[type="number"]:focus{outline:1px solid var(--accent);background:rgba(50,210,124,.05)}
+
+.chart-wrap{margin-top:2rem;width:100%;max-width:860px;position:relative;
+            touch-action:pan-x pan-y} /* Allow scrolling while enabling chart touch */
+#verdict{margin-top:1.4rem;font-size:1.25rem;font-weight:600;text-align:center;color:var(--accent);
+         transition:all .3s ease}
+
+.parameters{margin-top:2rem;width:100%;max-width:840px;background:var(--panel);
+           border-radius:.6rem;padding:1.5rem;border:1px solid rgba(50,210,124,.2)}
+.parameters-header{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;
+                  font-size:1rem;font-weight:600;color:var(--text)}
+
+/* Mobile tooltip fixes */
+@media (max-width: 768px) {
+  #chartjs-tooltip {
+    max-width: 90vw !important;
+    font-size: 11px !important;
+  }
+}
+
+.explain{margin-top:2rem;width:100%;max-width:840px;background:var(--panel);
+         border-radius:.6rem;padding:1.5rem;border:1px solid rgba(50,210,124,.2)}
+.explain-header{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;
+                font-size:1rem;font-weight:600;color:var(--text)}
+.explain-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.explain-item{display:flex;align-items:flex-start;gap:.75rem}
+.explain-icon{width:20px;height:20px;border-radius:4px;background:var(--accent);
+              display:flex;align-items:center;justify-content:center;font-size:12px;
+              color:var(--bg);flex-shrink:0;margin-top:.1rem}
+.explain-content{font-size:.85rem;line-height:1.4;color:var(--muted)}
+.explain-content strong{color:var(--text);font-weight:600}
+</style>
+</head>
+<body>
+<h1>Mortgage vs Invest Break-Even Tool</h1>
+
+<div class="chart-wrap"><canvas id="chart" height="260"></canvas></div>
+<div id="verdict"></div>
+
+<div class="explain">
+  <div class="explain-header">
+    <span>📊</span>
+    <span>Understanding the Chart</span>
+  </div>
+  <div class="explain-grid">
+    <div class="explain-item">
+      <div class="explain-icon">📈</div>
+      <div class="explain-content">
+        <strong>Green Shadow</strong><br>
+        Shows the uncertainty around expected investment returns. Wider shadow = more risk, but also more potential upside.
+      </div>
+    </div>
+    <div class="explain-item">
+      <div class="explain-icon">🏠</div>
+      <div class="explain-content">
+        <strong>Mortgage Line</strong><br>
+        Your guaranteed after-tax saving from extra mortgage payments. This is the "safe" option with no uncertainty.
+      </div>
+    </div>
+    <div class="explain-item">
+      <div class="explain-icon">📍</div>
+      <div class="explain-content">
+        <strong>Your Rate Marker</strong><br>
+        Shows where your current mortgage rate sits on the analysis. This is your break-even point for decision making.
+      </div>
+    </div>
+    <div class="explain-item">
+      <div class="explain-icon">⚖️</div>
+      <div class="explain-content">
+        <strong>Decision Guide</strong><br>
+        When investment shadow is mostly above the mortgage line, favor investing. When below, favor paying off the mortgage.
+      </div>
+    </div>
+    <div class="explain-item">
+      <div class="explain-icon">🎲</div>
+      <div class="explain-content">
+        <strong>Monte Carlo Simulation</strong><br>
+        Each calculation runs 5,000 random market scenarios. Values may vary slightly between refreshes due to randomness, but the overall analysis remains consistent.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="parameters">
+  <div class="parameters-header">
+    <span>⚙️</span>
+    <span>Adjust Your Parameters</span>
+  </div>
+  <div class="grid">
+    <div class="field">
+      <div class="field-label">
+        <span>Marginal tax rate (%)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Your highest tax bracket rate. In Australia, this includes Medicare levy. Use 47% for top earners, 37% for middle income.</div>
+      <input id="tax" type="number" value="47" min="0" step=".1">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Mortgage rate (%)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Your current home loan interest rate. This is your guaranteed "return" from paying off debt faster.</div>
+      <input id="mortgage" type="number" value="5.8" min="0" step=".05">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Dividend yield (%)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Expected annual dividend income as % of investment. ASX 200 average is ~4%. REITs often higher, growth stocks lower.</div>
+      <input id="divYield" type="number" value="4" min="0" step=".1">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Franking percent (0-100)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Percentage of dividends that are fully franked. Australian companies pay tax credits with dividends. Use 100% for major ASX stocks, lower for international.</div>
+      <input id="franking" type="number" value="100" min="0" max="100" step="1">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Expected cap-growth (%)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Expected annual capital growth before tax. Historical ASX average ~6-7%. Conservative: 4-5%, Aggressive: 8-10%.</div>
+      <input id="capGain" type="number" value="6" min="-20" step=".1">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Volatility σ (%)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">Annual price volatility (standard deviation). ASX ~17%, International ~15%, Bond funds ~5%. Higher = more uncertainty.</div>
+      <input id="sigma" type="number" value="17" min="1" step=".1">
+    </div>
+    <div class="field">
+      <div class="field-label">
+        <span>Time horizon (years)</span>
+        <span class="help-icon">?</span>
+      </div>
+      <div class="tooltip">How long until you need the money. Longer timeframes favor investing due to compound returns and tax benefits.</div>
+      <input id="horizon" type="number" value="10" min="1" step="1">
+    </div>
+  </div>
+</div>
+
+<script>
+/* --- DOM refs --- */
+const ctx=document.getElementById('chart');
+const idList=['tax','mortgage','divYield','franking','capGain','sigma','horizon'];
+const els=idList.map(id=>document.getElementById(id));
+const verdict=document.getElementById('verdict');
+
+/* --- Local Storage --- */
+function saveToStorage(){
+  const values={};
+  idList.forEach((id,i)=>values[id]=els[i].value);
+  localStorage.setItem('mortgageVsInvestParams',JSON.stringify(values));
+}
+
+function loadFromStorage(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('mortgageVsInvestParams'));
+    if(saved){
+      idList.forEach((id,i)=>{
+        if(saved[id]!==undefined){
+          els[i].value=saved[id];
+        }
+      });
+    }
+  }catch(e){
+    console.log('No saved parameters found');
+  }
+}
+
+/* --- helpers --- */
+const corpTax=0.30;
+const q=(a,p)=>{const s=[...a].sort((x,y)=>x-y);return s[Math.floor((s.length-1)*p)]};
+function divAfter(div,frank,m){const cr=div*frank/100*corpTax/(1-corpTax);return div+cr-(div+cr)*m;}
+function gainAfter(g,m,yrs){return g*(1-m*(yrs>=1?0.5:1));}
+function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* --- chart config --- */
+const chart=new Chart(ctx,{
+  type:'line',
+  data:{datasets:[
+    // Outermost confidence band (5th to 95th percentile)
+    {id:'p95',label:'90% Confidence (Best case)',data:[],borderWidth:0,fill:'+1',backgroundColor:'rgba(50,210,124,.06)',
+     pointRadius:0,pointHoverRadius:0,order:1},
+    {id:'p5',label:'90% Confidence (Worst case)',data:[],borderWidth:0,fill:false,backgroundColor:'rgba(50,210,124,.06)',
+     pointRadius:0,pointHoverRadius:0,order:1},
+    // Middle confidence band (10th to 90th percentile) 
+    {id:'p90',label:'80% Confidence',data:[],borderWidth:0,fill:'+1',backgroundColor:'rgba(50,210,124,.08)',
+     pointRadius:0,pointHoverRadius:0,order:2},
+    {id:'p10',data:[],borderWidth:0,fill:false,backgroundColor:'rgba(50,210,124,.08)',
+     pointRadius:0,pointHoverRadius:0,order:2},
+    // Inner confidence band (25th to 75th percentile)
+    {id:'p75',label:'50% Confidence',data:[],borderWidth:0,fill:'+1',backgroundColor:'rgba(50,210,124,.12)',
+     pointRadius:0,pointHoverRadius:0,order:3},
+    {id:'p25',data:[],borderWidth:0,fill:false,backgroundColor:'rgba(50,210,124,.12)',
+     pointRadius:0,pointHoverRadius:0,order:3},
+    // Main lines
+    {id:'mean',label:'Expected investment return',data:[],borderWidth:3,
+     borderColor:'#32d27c',pointRadius:0,pointHoverRadius:0,order:4},
+    {id:'mort',label:'Mortgage rate (guaranteed)',data:[],borderWidth:3,borderDash:[8,4],
+     borderColor:'#ff8899',pointRadius:0,pointHoverRadius:0,order:4}
+  ]},
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{
+      intersect:false,
+      mode:'index'
+    },
+    onHover:(event,elements)=>{
+      // Ensure tooltip works on mobile touch
+      if(event.type==='touchmove'||event.type==='mousemove'){
+        event.native = event.native || event;
+      }
+    },
+    scales:{
+      x:{type:'linear',min:0,max:10,ticks:{stepSize:.5},
+         title:{display:true,text:'Mortgage rate (%)'}},
+      y:{min:0,max:15,title:{display:true,text:'Return (% p.a.)'}}
+    },
+    plugins:{
+      legend:{
+        labels:{
+          color:'#f1f1f4',
+          filter:i=>i.text&&!i.text.includes('Confidence'),
+          usePointStyle:true,
+          pointStyle:'line',
+          generateLabels:chart=>{
+            const original=Chart.defaults.plugins.legend.labels.generateLabels(chart);
+            const filtered = original.filter(item=>item.text&&!item.text.includes('Confidence'));
+            
+            // Customize the legend items to show thick lines
+            filtered.forEach(item=>{
+              item.fillStyle='transparent';
+              item.strokeStyle=item.borderColor||item.strokeStyle;
+              item.lineWidth=3;
+              item.pointStyle='line';
+            });
+            
+            return [
+              ...filtered,
+              {text:'90% Confidence bands',fillStyle:'rgba(50,210,124,.15)',strokeStyle:'transparent',fontColor:'#8a8a90'}
+            ];
+          }
+        }
+      },
+      tooltip:{
+        enabled:false, // Disable default tooltip since we're using external
+        mode:'index',intersect:false,displayColors:false,
+        external:function(context){
+          // Custom positioning to avoid blocking chart lines
+          const {chart,tooltip} = context;
+          
+          let tooltipEl = document.getElementById('chartjs-tooltip');
+          if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.id = 'chartjs-tooltip';
+            tooltipEl.style.position = 'absolute';
+            tooltipEl.style.pointerEvents = 'none';
+            tooltipEl.style.transition = 'all .2s ease';
+            tooltipEl.style.zIndex = '1000';
+            document.body.appendChild(tooltipEl);
+          }
+          
+          // Hide if no tooltip
+          if (tooltip.opacity === 0) {
+            tooltipEl.style.opacity = 0;
+            return;
+          }
+          
+          // Build tooltip content manually since external tooltips need custom data handling
+          const canvas = chart.canvas;
+          const rect = canvas.getBoundingClientRect();
+          const position = Chart.helpers.getRelativePosition(tooltip, chart);
+          const dataPoints = tooltip.dataPoints || [];
+          
+          if (dataPoints.length === 0) {
+            tooltipEl.style.opacity = 0;
+            return;
+          }
+          
+          const mortgageRate = dataPoints[0]?.parsed?.x || 0;
+          const mortPoint = dataPoints.find(p => p.dataset.id === 'mort');
+          const meanPoint = dataPoints.find(p => p.dataset.id === 'mean');
+          
+          let beforeBodyText = '';
+          if (mortPoint && meanPoint) {
+            const diff = meanPoint.parsed.y - mortPoint.parsed.y;
+            if (diff > 0.1) beforeBodyText = `📈 Investing ahead by ${diff.toFixed(2)}%`;
+            else if (diff < -0.1) beforeBodyText = `🏠 Mortgage ahead by ${Math.abs(diff).toFixed(2)}%`;
+            else beforeBodyText = '⚖️ Very close decision';
+          }
+          
+          let bodyText = '';
+          if (meanPoint) bodyText += `Expected return: ${meanPoint.parsed.y.toFixed(2)}%<br>`;
+          if (mortPoint) bodyText += `Mortgage saving: ${mortgageRate.toFixed(1)}%`;
+          
+          let afterBodyText = '';
+          if (currentPercentiles.p5) {
+            afterBodyText = `<br>Investment return scenarios:<br>
+              Best case (95th): ${currentPercentiles.p95.toFixed(1)}%<br>
+              Good case (75th): ${currentPercentiles.p75.toFixed(1)}%<br>
+              Expected (50th): ${currentPercentiles.p50.toFixed(1)}%<br>
+              Poor case (25th): ${currentPercentiles.p25.toFixed(1)}%<br>
+              Worst case (5th): ${currentPercentiles.p5.toFixed(1)}%<br><br>
+              Based on 5,000 Monte Carlo scenarios`;
+          } else {
+            afterBodyText = '<br>Based on Monte Carlo simulation (5,000 scenarios)';
+          }
+          
+          // Position tooltip above chart area, accounting for scroll position
+          const x = rect.left + (position.x || 0);
+          const y = rect.top + window.pageYOffset - 20; // Add scroll offset
+          
+          // Smart positioning: if tooltip would go off-screen, position it below the chart instead
+          const tooltipHeight = 180;
+          const viewportTop = window.pageYOffset;
+          const viewportBottom = viewportTop + window.innerHeight;
+          
+          let finalY;
+          if (y - tooltipHeight < viewportTop + 10) {
+            // Position below chart if there's not enough space above
+            finalY = rect.top + window.pageYOffset + rect.height + 20;
+          } else {
+            finalY = Math.max(viewportTop + 10, y - tooltipHeight);
+          }
+          
+          tooltipEl.style.left = Math.max(10, Math.min(x - 140, window.innerWidth - 290)) + 'px';
+          tooltipEl.style.top = finalY + 'px';
+          
+          // Style the custom tooltip
+          tooltipEl.innerHTML = `
+            <div style="
+              background: rgba(25,25,29,.95);
+              border: 1px solid #32d27c;
+              border-radius: 8px;
+              padding: 12px;
+              color: #f1f1f4;
+              font-family: Inter, system-ui, sans-serif;
+              font-size: 12px;
+              box-shadow: 0 4px 12px rgba(0,0,0,.3);
+              max-width: 280px;
+            ">
+              <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">
+                At ${mortgageRate.toFixed(1)}% mortgage rate
+              </div>
+              ${beforeBodyText}<br>
+              ${bodyText}
+              <div style="margin-top: 8px; font-size: 11px; opacity: 0.8;">
+                ${afterBodyText}
+              </div>
+            </div>
+          `;
+          
+          tooltipEl.style.opacity = 1;
+        }
+      },
+      annotation:{annotations:{
+        sweet:{type:'line',scaleID:'x',value:0,borderColor:'#fff',borderDash:[4,4],borderWidth:2,
+               label:{content:'your rate',enabled:true,position:'start',
+                      backgroundColor:'rgba(0,0,0,.6)',color:'#f1f1f4',yAdjust:-10}}
+      }}
+    }
+  }
+});
+
+/* --- recalc --- */
+let currentPercentiles={}; // Store for tooltip access
+
+function recalc(){
+  const [tax,mort,div,frank,cap,sig,yrs]=els.map(e=>+e.value);
+  const mRate=tax/100, sigma=sig/100;
+
+  const divNet=divAfter(div/100,frank,mRate);
+
+  /* Monte-Carlo */
+  const N=5000, dist=[];
+  for(let i=0;i<N;i++){
+    let g=1;
+    for(let y=0;y<yrs;y++) g*=1+cap/100+sigma*randn();
+    const cagr=Math.pow(g,1/yrs)-1;
+    dist.push(divNet+gainAfter(cagr,mRate,yrs));
+  }
+  
+  // Calculate percentiles and TRUE mean from Monte Carlo
+  const p5=q(dist,.05),p10=q(dist,.10),p25=q(dist,.25),p50=q(dist,.50);
+  const p75=q(dist,.75),p90=q(dist,.90),p95=q(dist,.95);
+  const mcMean=dist.reduce((a,b)=>a+b,0)/dist.length; // True Monte Carlo mean
+  
+  // Store for tooltip access
+  currentPercentiles={p5:p5*100,p10:p10*100,p25:p25*100,p50:p50*100,
+                     p75:p75*100,p90:p90*100,p95:p95*100,mean:mcMean*100};
+
+  /* y-axis */
+  chart.options.scales.y.min=Math.floor(Math.min(0,p5*100)-1);
+  chart.options.scales.y.max=Math.ceil(Math.max(p95*100,mort,mcMean*100)+1);
+
+  /* dataset helpers */
+  const make=(fn)=>Array.from({length:101},(_,i)=>({x:i/10,y:fn(i/10)}));
+  
+  // Confidence bands - always visible now
+  chart.data.datasets.find(d=>d.id==='p95').data=make(()=>p95*100);
+  chart.data.datasets.find(d=>d.id==='p5').data=make(()=>p5*100);
+  chart.data.datasets.find(d=>d.id==='p90').data=make(()=>p90*100);
+  chart.data.datasets.find(d=>d.id==='p10').data=make(()=>p10*100);
+  chart.data.datasets.find(d=>d.id==='p75').data=make(()=>p75*100);
+  chart.data.datasets.find(d=>d.id==='p25').data=make(()=>p25*100);
+  
+  // Main lines - use Monte Carlo mean for consistency
+  chart.data.datasets.find(d=>d.id==='mean').data=make(()=>mcMean*100);
+  chart.data.datasets.find(d=>d.id==='mort').data=make(r=>r);
+
+  chart.options.plugins.annotation.annotations.sweet.value=mort;
+  chart.update('active');
+
+  // Use Monte Carlo mean for verdict calculation
+  const diff=mcMean*100-mort;
+  const verdictEl=document.getElementById('verdict');
+  
+  // Smooth verdict update with animation
+  verdictEl.style.opacity='0.7';
+  setTimeout(()=>{
+    verdictEl.textContent=Math.abs(diff)<.25
+      ? '⚖️ Pretty even – decide on risk & flexibility.'
+      : diff>0 ? `📈 Investing wins by ≈ ${diff.toFixed(2)}% p.a.`
+                : `🏠 Pay the mortgage – saves ≈ ${(-diff).toFixed(2)}% p.a.`;
+    verdictEl.style.opacity='1';
+  },150);
+  
+  // Save parameters to local storage
+  saveToStorage();
+}
+
+/* listeners */
+loadFromStorage(); // Load saved parameters
+els.forEach(el=>el.addEventListener('input',recalc));
+recalc();
+</script>
+</body>
+</html>
