@@ -502,7 +502,8 @@ els.forEach(el=>el.addEventListener('input',recalc));
 
 // Add crosshair functionality using annotations
 const canvas = chart.canvas;
-canvas.addEventListener('mousemove', (event) => {
+
+function updateCrosshairs(event) {
   const canvasPosition = Chart.helpers.getRelativePosition(event, chart);
   
   // Check if we're in the chart area
@@ -523,14 +524,22 @@ canvas.addEventListener('mousemove', (event) => {
     
     chart.update('none'); // Use 'none' mode for performance
   }
-});
+}
 
-canvas.addEventListener('mouseleave', () => {
-  // Hide crosshairs when mouse leaves chart
+function hideCrosshairs() {
+  // Hide crosshairs when mouse/touch leaves chart
   chart.options.plugins.annotation.annotations.crosshairV.display = false;
   chart.options.plugins.annotation.annotations.crosshairH.display = false;
   chart.update('none');
-});
+}
+
+// Desktop mouse events
+canvas.addEventListener('mousemove', updateCrosshairs);
+canvas.addEventListener('mouseleave', hideCrosshairs);
+
+// Mobile touch events
+canvas.addEventListener('touchmove', updateCrosshairs);
+canvas.addEventListener('touchend', hideCrosshairs);
 
 // Global click/touch handler for mobile tooltip dismissal
 document.addEventListener('click', (event) => {
