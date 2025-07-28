@@ -216,6 +216,7 @@ function gainAfter(g,m,yrs){return g*(1-m*(yrs>=1?0.5:1));}
 function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 
 /* --- chart config --- */
+
 const chart=new Chart(ctx,{
   type:'line',
   data:{datasets:[
@@ -250,6 +251,16 @@ const chart=new Chart(ctx,{
       // Ensure tooltip works on mobile touch
       if(event.type==='touchmove'||event.type==='mousemove'){
         event.native = event.native || event;
+      }
+    },
+    onLeave:()=>{
+      // Hide crosshairs when leaving chart on desktop
+      if (!isMobile && isTooltipVisible) {
+        const tooltipEl = document.getElementById('chartjs-tooltip');
+        if (tooltipEl) {
+          tooltipEl.style.opacity = 0;
+        }
+        isTooltipVisible = false;
       }
     },
     scales:{
@@ -304,6 +315,7 @@ const chart=new Chart(ctx,{
           // Hide if no tooltip
           if (tooltip.opacity === 0) {
             tooltipEl.style.opacity = 0;
+            isTooltipVisible = false;
             return;
           }
           
@@ -315,8 +327,11 @@ const chart=new Chart(ctx,{
           
           if (dataPoints.length === 0) {
             tooltipEl.style.opacity = 0;
+            isTooltipVisible = false;
             return;
           }
+          
+          isTooltipVisible = true;
           
           const mortgageRate = dataPoints[0]?.parsed?.x || 0;
           const mortPoint = dataPoints.find(p => p.dataset.id === 'mort');
@@ -397,7 +412,11 @@ const chart=new Chart(ctx,{
       annotation:{annotations:{
         sweet:{type:'line',scaleID:'x',value:0,borderColor:'#fff',borderDash:[4,4],borderWidth:2,
                label:{content:'your rate',enabled:true,position:'start',
-                      backgroundColor:'rgba(0,0,0,.6)',color:'#f1f1f4',yAdjust:-10}}
+                      backgroundColor:'rgba(0,0,0,.6)',color:'#f1f1f4',yAdjust:-10}},
+        crosshairV:{type:'line',scaleID:'x',value:0,borderColor:'rgba(255,255,255,0.8)',
+                   borderDash:[3,3],borderWidth:1,display:false},
+        crosshairH:{type:'line',scaleID:'y',value:0,borderColor:'rgba(255,255,255,0.8)',
+                   borderDash:[3,3],borderWidth:1,display:false}
       }}
     }
   }
@@ -405,6 +424,13 @@ const chart=new Chart(ctx,{
 
 /* --- recalc --- */
 let currentPercentiles={}; // Store for tooltip access
+let isTooltipVisible = false; // Track tooltip state
+let isMobile = window.innerWidth <= 768; // Mobile detection
+
+// Update mobile detection on resize
+window.addEventListener('resize', () => {
+  isMobile = window.innerWidth <= 768;
+});
 
 function recalc(){
   const [tax,mort,div,frank,cap,sig,yrs]=els.map(e=>+e.value);
@@ -473,6 +499,82 @@ function recalc(){
 /* listeners */
 loadFromStorage(); // Load saved parameters
 els.forEach(el=>el.addEventListener('input',recalc));
+
+// Add crosshair functionality using annotations
+const canvas = chart.canvas;
+canvas.addEventListener('mousemove', (event) => {
+  const canvasPosition = Chart.helpers.getRelativePosition(event, chart);
+  
+  // Check if we're in the chart area
+  if (canvasPosition.x >= chart.chartArea.left && 
+      canvasPosition.x <= chart.chartArea.right && 
+      canvasPosition.y >= chart.chartArea.top && 
+      canvasPosition.y <= chart.chartArea.bottom) {
+    
+    // Convert pixel positions to data values
+    const xValue = chart.scales.x.getValueForPixel(canvasPosition.x);
+    const yValue = chart.scales.y.getValueForPixel(canvasPosition.y);
+    
+    // Update crosshair annotations
+    chart.options.plugins.annotation.annotations.crosshairV.value = xValue;
+    chart.options.plugins.annotation.annotations.crosshairV.display = true;
+    chart.options.plugins.annotation.annotations.crosshairH.value = yValue;
+    chart.options.plugins.annotation.annotations.crosshairH.display = true;
+    
+    chart.update('none'); // Use 'none' mode for performance
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  // Hide crosshairs when mouse leaves chart
+  chart.options.plugins.annotation.annotations.crosshairV.display = false;
+  chart.options.plugins.annotation.annotations.crosshairH.display = false;
+  chart.update('none');
+});
+
+// Global click/touch handler for mobile tooltip dismissal
+document.addEventListener('click', (event) => {
+  if (!isTooltipVisible) return;
+  
+  const canvas = chart.canvas;
+  const rect = canvas.getBoundingClientRect();
+  const isInsideChart = event.clientX >= rect.left && 
+                       event.clientX <= rect.right && 
+                       event.clientY >= rect.top && 
+                       event.clientY <= rect.bottom;
+  
+  // If clicking outside chart on mobile, hide tooltip
+  if (!isInsideChart && isMobile) {
+    const tooltipEl = document.getElementById('chartjs-tooltip');
+    if (tooltipEl) {
+      tooltipEl.style.opacity = 0;
+    }
+    isTooltipVisible = false;
+  }
+});
+
+// Touch event handler for mobile
+document.addEventListener('touchstart', (event) => {
+  if (!isTooltipVisible) return;
+  
+  const canvas = chart.canvas;
+  const rect = canvas.getBoundingClientRect();
+  const touch = event.touches[0];
+  const isInsideChart = touch.clientX >= rect.left && 
+                       touch.clientX <= rect.right && 
+                       touch.clientY >= rect.top && 
+                       touch.clientY <= rect.bottom;
+  
+  // If touching outside chart, hide tooltip
+  if (!isInsideChart) {
+    const tooltipEl = document.getElementById('chartjs-tooltip');
+    if (tooltipEl) {
+      tooltipEl.style.opacity = 0;
+    }
+    isTooltipVisible = false;
+  }
+});
+
 recalc();
 </script>
 </body>
